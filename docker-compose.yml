@@ -1,0 +1,158 @@
+# ============================================================
+# EXBanka-2 — Central Orchestration
+#
+# Manages the full stack from a single compose file.
+# All build contexts are relative to this directory.
+#
+# Usage (from EXBanka-2-Infrastructure/):
+#   cp .env.example .env   # fill in secrets
+#   docker compose up --build
+# ============================================================
+
+services:
+
+  # ── Infrastructure ────────────────────────────────────────
+
+  db:
+    image: postgres:15-alpine
+    container_name: bank_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${DB_EXTERNAL_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - bank-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: bank_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI  →  http://localhost:15672
+    networks:
+      - bank-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Runs once; user-service waits for service_completed_successfully.
+  migrate:
+    image: migrate/migrate
+    container_name: bank_migrate
+    volumes:
+      - ../EXBanka-2-Backend/services/user-service/internal/database/migrations:/migrations:ro
+    command: >
+      -path=/migrations
+      -database=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      up
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bank-net
+    restart: on-failure
+
+  # ── Backend Services ──────────────────────────────────────
+
+  user-service:
+    build:
+      context: ../EXBanka-2-Backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_PATH: services/user-service/cmd/server
+    container_name: bank_user_service
+    restart: on-failure
+    ports:
+      - "${USER_SERVICE_HTTP_PORT:-8082}:8080"
+      - "${USER_SERVICE_GRPC_PORT:-50052}:50051"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - bank-net
+
+  notification-service:
+    build:
+      context: ../EXBanka-2-Backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_PATH: services/notification-service/cmd/server
+    container_name: bank_notification_service
+    restart: on-failure
+    environment:
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      FROM_EMAIL: ${FROM_EMAIL}
+      FRONTEND_URL: ${FRONTEND_URL}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - bank-net
+
+  # ── Frontend ──────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ../EXBanka-2-Frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the Vite bundle at build time.
+        # /api keeps traffic on Nginx so the proxy rule rewrites the path.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_MOCK_MODE: ${VITE_MOCK_MODE:-false}
+    image: exbanka-frontend:latest
+    container_name: exbanka_frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    # nginx.conf proxies /api/ → http://host.docker.internal:8082/
+    # extra_hosts resolves that name to the Docker host so the request
+    # reaches user-service via its published port (8082).
+    #
+    # To route purely over bank-net without touching the host, change the
+    # upstream in EXBanka-2-Frontend/nginx.conf to:
+    #   proxy_pass http://user-service:8080/;
+    # and remove the extra_hosts block below.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - user-service
+    networks:
+      - bank-net
+
+# ── Shared Network & Volumes ──────────────────────────────
+
+networks:
+  bank-net:
+    driver: bridge
+
+volumes:
+  pgdata:
