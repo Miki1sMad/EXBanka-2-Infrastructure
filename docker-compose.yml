@@ -64,6 +64,20 @@ services:
     networks:
       - bank-net
     restart: on-failure
+  
+  #Migracija za bank-service, koristi se druga tabela za praćenje migracija (schema_migrations_bank) da se ne bi mešale sa onima od user-service-a
+  migrate-bank:
+    image: migrate/migrate
+    container_name: bank_migrate_bank
+    volumes:
+      - ../EXBanka-2-Backend/services/bank-service/internal/database/migrations:/migrations:ro
+    command: ["-path=/migrations", "-database=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable&x-migrations-table=schema_migrations_bank", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - bank-net
+    restart: on-failure
 
   # ── Backend Services ──────────────────────────────────────
 
@@ -81,6 +95,7 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 5432
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
@@ -91,6 +106,34 @@ services:
       rabbitmq:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+    networks:
+      - bank-net
+  bank-service:
+    build:
+      context: ../EXBanka-2-Backend
+      dockerfile: Dockerfile
+      args:
+        SERVICE_PATH: services/bank-service/cmd/server
+    container_name: bank_service
+    restart: on-failure
+    ports:
+      - "${BANK_SERVICE_HTTP_PORT:-8083}:8080"
+      - "${BANK_SERVICE_GRPC_PORT:-50053}:50051"
+    environment:
+      HTTP_ADDR: "0.0.0.0:8080" 
+      GRPC_ADDR: "0.0.0.0:50051"
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      DB_SCHEMA: core_banking  
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate-bank:
         condition: service_completed_successfully
     networks:
       - bank-net
