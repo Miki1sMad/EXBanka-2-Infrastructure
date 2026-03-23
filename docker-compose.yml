@@ -119,7 +119,7 @@ services:
     restart: on-failure
     ports:
       - "${BANK_SERVICE_HTTP_PORT:-8083}:8080"
-      - "${BANK_SERVICE_GRPC_PORT:-50053}:50051"
+      - "${BANK_SERVICE_GRPC_PORT:-50054}:50051"
     environment:
       HTTP_ADDR: "0.0.0.0:8080" 
       GRPC_ADDR: "0.0.0.0:50051"
@@ -130,11 +130,22 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
       DB_SCHEMA: core_banking  
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      # --- DODATO ZA KARTICE ---
+      REDIS_URL: "redis://redis:6379"
+      NOTIFICATION_SERVICE_ADDR: "notification-service:50053"
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       migrate-bank:
         condition: service_completed_successfully
+      # --- DODATO ZA KARTICE ---
+      redis:
+        condition: service_healthy
+      notification-service:
+        condition: service_started
     networks:
       - bank-net
 
@@ -154,11 +165,29 @@ services:
       SMTP_PASS: ${SMTP_PASS}
       FROM_EMAIL: ${FROM_EMAIL}
       FRONTEND_URL: ${FRONTEND_URL}
+      # --- DODATO ZA gRPC ---
+      GRPC_ADDR: "0.0.0.0:50053"
+    # Opciono: otvaramo port ka hostu za lakše debagovanje
+    ports:
+      - "50053:50053"
     depends_on:
       rabbitmq:
         condition: service_healthy
     networks:
       - bank-net
+  redis:
+    image: redis:7-alpine
+    container_name: bank_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - bank-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   # ── Frontend ──────────────────────────────────────────────
 
