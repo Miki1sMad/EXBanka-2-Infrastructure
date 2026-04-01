@@ -134,6 +134,10 @@ services:
       # --- DODATO ZA KARTICE ---
       REDIS_URL: "redis://redis:6379"
       NOTIFICATION_SERVICE_ADDR: "notification-service:50053"
+      # --- TRŽIŠNI PODACI (hartije od vrednosti) ---
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      ALPHAVANTAGE_API_KEY: ${ALPHAVANTAGE_API_KEY:-}
+      LISTING_REFRESH_INTERVAL_MINUTES: ${LISTING_REFRESH_INTERVAL_MINUTES:-15}
     depends_on:
       db:
         condition: service_healthy
