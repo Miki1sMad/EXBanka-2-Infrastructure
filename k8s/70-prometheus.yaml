@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: exbanka-2
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'user-service'
+        static_configs:
+          - targets: ['user-service:8080']
+
+      - job_name: 'bank-service'
+        static_configs:
+          - targets: ['bank-service:8080']
+
+      - job_name: 'notification-service'
+        static_configs:
+          - targets: ['notification-service:8083']
+
+  alerts.yml: |
+    groups:
+      - name: exbanka-service-health
+        rules:
+          - alert: ServiceDown
+            expr: up == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Service {{ $labels.job }} is DOWN"
+              description: "Prometheus target {{ $labels.instance }} (job={{ $labels.job }}) has been unreachable for over 1 minute."
+
+          - alert: HighGRPCErrorRate
+            expr: |
+              sum by (job) (rate(grpc_server_handled_total{grpc_code!="OK"}[5m]))
+                /
+              sum by (job) (rate(grpc_server_handled_total[5m]))
+                > 0.05
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High gRPC error rate on {{ $labels.job }}"
+              description: "More than 5% of gRPC calls on {{ $labels.job }} are failing over the last 5 minutes."
+
+          - alert: HighGRPCLatencyP99
+            expr: |
+              histogram_quantile(0.99,
+                sum by (le, job) (rate(grpc_server_handling_seconds_bucket[5m]))
+              ) > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High p99 gRPC latency on {{ $labels.job }}"
+              description: "p99 latency on {{ $labels.job }} is above 1s for 5 minutes."
+
+          - alert: HighHTTPErrorRate
+            expr: |
+              sum by (job) (rate(http_requests_total{code=~"5.."}[5m]))
+                /
+              sum by (job) (rate(http_requests_total[5m]))
+                > 0.05
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High HTTP 5xx rate on {{ $labels.job }}"
+              description: "More than 5% of HTTP responses on {{ $labels.job }} are 5xx over 5 minutes."
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: exbanka-2
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: exbanka-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      securityContext:
+        fsGroup: 65534
+        runAsUser: 65534
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.55.1
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+            - "--web.console.templates=/usr/share/prometheus/consoles"
+          ports:
+            - { name: http, containerPort: 9090 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus/prometheus.yml, subPath: prometheus.yml, readOnly: true }
+            - { name: config, mountPath: /etc/prometheus/rules/alerts.yml, subPath: alerts.yml, readOnly: true }
+            - { name: data,   mountPath: /prometheus }
+          readinessProbe:
+            httpGet: { path: /-/ready, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /-/healthy, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits:   { cpu: 500m, memory: 1Gi }
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: exbanka-2
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - { name: http, port: 9090, targetPort: 9090 }

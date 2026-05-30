@@ -1,0 +1,49 @@
+# Init container creates the `user_service` schema, then migrate runs.
+# search_path forces unqualified table refs into that schema. Migrations
+# table is named distinctly so it cannot collide with bank-service's.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-user-service
+  namespace: exbanka-2
+spec:
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: ensure-schema
+          image: postgres:17-alpine
+          env:
+            - { name: PGHOST,     valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_HOST } } }
+            - { name: PGPORT,     valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_PORT } } }
+            - { name: PGDATABASE, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_NAME } } }
+            - { name: PGUSER,     valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: user } } }
+            - { name: PGPASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: password } } }
+          command: ["psql", "-v", "ON_ERROR_STOP=1", "-c", "CREATE SCHEMA IF NOT EXISTS user_service;"]
+      containers:
+        - name: migrate
+          image: migrate/migrate:v4.17.1
+          # Mounted at /migrations from a ConfigMap baked from the backend repo,
+          # OR (recommended) use an init-container to git-clone the repo.
+          # Here we expect the migrations to be pre-baked into a sibling image.
+          # Replace with your migrations image (or inline via initContainer + emptyDir).
+          args:
+            - "-path=/migrations"
+            - "-database=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable&search_path=user_service&x-migrations-table=schema_migrations_user"
+            - "up"
+          env:
+            - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_HOST } } }
+            - { name: DB_PORT, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_PORT } } }
+            - { name: DB_NAME, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_NAME } } }
+            - { name: DB_USER,     valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: user } } }
+            - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: password } } }
+          volumeMounts:
+            - { name: migrations, mountPath: /migrations, readOnly: true }
+      volumes:
+        # Option A: ConfigMap from migrations dir. Apply with:
+        #   kubectl create configmap user-migrations -n exbanka-2 \
+        #     --from-file=services/user-service/internal/database/migrations/
+        - name: migrations
+          configMap:
+            name: user-migrations

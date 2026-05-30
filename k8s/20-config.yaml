@@ -1,0 +1,41 @@
+# Non-secret runtime configuration. Secrets live in 21-secrets.yaml.
+# DB credentials are sourced from the Crunchy-managed secret `db-pguser-bank_admin`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: exbanka-config
+  namespace: exbanka-2
+data:
+  DB_HOST: "db-primary.exbanka-2.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "bank_db"
+  RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+  REDIS_URL: "redis://redis:6379"
+
+  # Cross-service routing inside the namespace.
+  BANK_SERVICE_ADDR: "http://bank-service:8080"
+  USER_SERVICE_ADDR: "user-service:50051"
+  NOTIFICATION_SERVICE_ADDR: "notification-service:50053"
+
+  # Bank-service: parameters with safe defaults; override per-service in Deployment.
+  LISTING_REFRESH_INTERVAL_MINUTES: "15"
+  LISTING_REQUIRE_LIVE_QUOTES: "false"
+  WORKER_INTERVAL_HOURS: "24"
+  RETRY_AFTER_HOURS: "72"
+  LATE_PAYMENT_PENALTY_PCT: "0.05"
+  EXCHANGE_SPREAD_RATE: "0.005"
+  EXCHANGE_PROVIZIJA_RATE: "0.005"
+  BANK_ID: "1"
+  INTERBANK_BANK_DISPLAY_NAME: "EXBanka 2"
+
+  # Notification-service SMTP.
+  SMTP_HOST: "smtp.gmail.com"
+  SMTP_PORT: "587"
+  FROM_EMAIL: "no-reply@exbanka.example"
+  FRONTEND_URL: "https://DOMEN_PLACEHOLDER"
+
+  # Frontend runtime config (consumed by docker-entrypoint.sh).
+  API_BASE_URL: "/api"
+  APP_ENV: "production"
+  ACCESS_TOKEN_TTL_MS: "900000"
+  MOCK_MODE: "false"

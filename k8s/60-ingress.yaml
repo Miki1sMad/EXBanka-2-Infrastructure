@@ -1,0 +1,70 @@
+# Single Ingress. Two layout options, pick per professor's setup:
+#
+#  Option A (recommended; minimal frontend changes):
+#    Everything goes to the frontend Service. Frontend's own nginx proxies
+#    /api/* to user-service / bank-service. This works with the existing
+#    nginx.conf in EXBanka-2-Frontend and requires no further refactoring.
+#    API_BASE_URL stays "/api". Browser only ever sees https://DOMEN/...
+#
+#  Option B (matches the "/<service-name>/" URL format literally):
+#    Ingress routes /user-service/* and /bank-service/* directly to backend
+#    Services and strips the prefix. Frontend must be configured with
+#    API_BASE_URL="" (or absolute https://DOMEN) and each call must use the
+#    full /user-service/... or /bank-service/... path. Requires service-file
+#    refactor — kept here for future use.
+#
+# Active config below = Option A.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: exbanka
+  namespace: exbanka-2
+  annotations:
+    # Adjust to your cluster's controller (nginx / traefik / haproxy / ...).
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: ["DOMEN_PLACEHOLDER"]
+      secretName: exbanka-tls
+  rules:
+    - host: DOMEN_PLACEHOLDER
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+---
+# Option B (commented out — uncomment + remove Option A rule above if professor
+# requires literal /user-service/ and /bank-service/ paths in URLs).
+#
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: exbanka-split
+#   namespace: exbanka-2
+#   annotations:
+#     nginx.ingress.kubernetes.io/rewrite-target: /$2
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#     - hosts: ["DOMEN_PLACEHOLDER"]
+#       secretName: exbanka-tls
+#   rules:
+#     - host: DOMEN_PLACEHOLDER
+#       http:
+#         paths:
+#           - path: /user-service(/|$)(.*)
+#             pathType: ImplementationSpecific
+#             backend: { service: { name: user-service, port: { number: 8080 } } }
+#           - path: /bank-service(/|$)(.*)
+#             pathType: ImplementationSpecific
+#             backend: { service: { name: bank-service, port: { number: 8080 } } }
+#           - path: /(.*)
+#             pathType: ImplementationSpecific
+#             backend: { service: { name: frontend, port: { number: 80 } } }
