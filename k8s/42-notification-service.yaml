@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: exbanka-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: notification-service
+          image: ghcr.io/raf-si-2025/exbanka-2-backend-notification-service:latest
+          imagePullPolicy: Always
+          ports:
+            - { name: metrics, containerPort: 8083 }
+            - { name: grpc,    containerPort: 50053 }
+          env:
+            - { name: GRPC_ADDR,    value: "0.0.0.0:50053" }
+            - { name: METRICS_ADDR, value: ":8083" }
+          envFrom:
+            - configMapRef: { name: exbanka-config }
+            - secretRef:    { name: exbanka-secrets }
+          readinessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: metrics }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: exbanka-2
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - { name: metrics, port: 8083, targetPort: 8083 }
+    - { name: grpc,    port: 50053, targetPort: 50053 }
