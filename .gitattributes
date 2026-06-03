@@ -1,0 +1,2 @@
+.env filter=git-crypt diff=git-crypt
+alertmanager/discord_webhook_url filter=git-crypt diff=git-crypt
