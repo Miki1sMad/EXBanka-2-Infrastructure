@@ -1,5 +1,5 @@
 # Non-secret runtime configuration. Secrets live in 21-secrets.yaml.
-# DB credentials are sourced from the Crunchy-managed secret `db-pguser-bank_admin`.
+# DB credentials are sourced from the Crunchy-managed secret `db-pguser-bankadmin`.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -32,7 +32,7 @@ data:
   SMTP_HOST: "smtp.gmail.com"
   SMTP_PORT: "587"
   FROM_EMAIL: "no-reply@exbanka.example"
-  FRONTEND_URL: "https://DOMEN_PLACEHOLDER"
+  FRONTEND_URL: "https://exbanka-2.radenkovic.rs"
 
   # Frontend runtime config (consumed by docker-entrypoint.sh).
   API_BASE_URL: "/api"

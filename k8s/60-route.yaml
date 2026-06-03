@@ -1,0 +1,24 @@
+# Gateway API HTTPRoute — zamena za Ingress (60-ingress.yaml).
+# Format po profesorovom primeru (Banka-2-Infrastructure/route.yaml), NE po
+# route-old.yaml (koji je profesor proglasio prekompleksnim).
+#
+# Sav saobracaj ide na frontend Service. Frontend-ov nginx (nginx.conf) sam
+# proxy-uje /api/* na bank-service / user-service. Zato HTTPRoute ostaje
+# jednostavan — jedno pravilo, bez per-endpoint URLRewrite-a.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+    name: exbanka-2
+    namespace: exbanka-2
+spec:
+    parentRefs:
+        - name: banka-gw
+          namespace: envoy-gateway-system
+    hostnames:
+        - exbanka-2.radenkovic.rs
+    rules:
+        - matches:
+              - path: { type: PathPrefix, value: / }
+          backendRefs:
+              - name: frontend
+                port: 80

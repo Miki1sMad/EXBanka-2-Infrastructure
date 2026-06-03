@@ -47,13 +47,16 @@ spec:
     pgBouncer:
       replicas: 2
       image: registry.developers.crunchydata.com/crunchydata/crunchy-pgbouncer:ubi9-1.25-2610
-      resources:
-        limits:
-          cpu: 200m
-          memory: 128Mi
+  # Allow non-SSL TCP connections (services hardcode sslmode=disable). `host`
+  # covers both SSL and non-SSL; scram-sha-256 never sends the password in
+  # cleartext even over a plaintext socket. Traffic stays inside the cluster.
+  authentication:
+    rules:
+      - connection: host
+        method: scram-sha-256
   # Single DB, single owner. Schemas (user_service, core_banking) created by migration Jobs.
   users:
-    - name: bank_admin
+    - name: bankadmin
       password:
         type: "AlphaNumeric"
       databases:

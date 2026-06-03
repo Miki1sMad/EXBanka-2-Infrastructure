@@ -69,17 +69,6 @@ spec:
             - { name: config,  mountPath: /etc/alertmanager/alertmanager.yml, subPath: alertmanager.yml, readOnly: true }
             - { name: secrets, mountPath: /etc/alertmanager/secrets, readOnly: true }
             - { name: data,    mountPath: /alertmanager }
-          readinessProbe:
-            httpGet: { path: /-/ready, port: http }
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          livenessProbe:
-            httpGet: { path: /-/healthy, port: http }
-            initialDelaySeconds: 30
-            periodSeconds: 30
-          resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits:   { cpu: 200m, memory: 256Mi }
       volumes:
         - name: config
           configMap:
