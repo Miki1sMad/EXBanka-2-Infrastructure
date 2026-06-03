@@ -29,17 +29,6 @@ spec:
             - { name: APP_ENV,             valueFrom: { configMapKeyRef: { name: exbanka-config, key: APP_ENV } } }
             - { name: ACCESS_TOKEN_TTL_MS, valueFrom: { configMapKeyRef: { name: exbanka-config, key: ACCESS_TOKEN_TTL_MS } } }
             - { name: MOCK_MODE,           valueFrom: { configMapKeyRef: { name: exbanka-config, key: MOCK_MODE } } }
-          readinessProbe:
-            httpGet: { path: /health, port: http }
-            initialDelaySeconds: 3
-            periodSeconds: 10
-          livenessProbe:
-            httpGet: { path: /health, port: http }
-            initialDelaySeconds: 15
-            periodSeconds: 30
-          resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits:   { cpu: 200m, memory: 128Mi }
 ---
 apiVersion: v1
 kind: Service

@@ -1,14 +1,8 @@
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: rabbitmq-data
-  namespace: exbanka-2
-spec:
-  accessModes: [ReadWriteOnce]
-  resources:
-    requests:
-      storage: 2Gi
----
+# RabbitMQ message broker (AMQP) for inter-service events.
+# Stateless deployment: no PersistentVolume — queues/messages are
+# ephemeral and rebuilt by services on reconnect (matches docker-compose,
+# which runs rabbitmq with no volume). Default guest/guest credentials
+# match RABBITMQ_URL in the exbanka-config ConfigMap.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,22 +24,6 @@ spec:
           ports:
             - { name: amqp, containerPort: 5672 }
             - { name: mgmt, containerPort: 15672 }
-          readinessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "ping"]
-            initialDelaySeconds: 20
-            periodSeconds: 10
-          livenessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "status"]
-            initialDelaySeconds: 60
-            periodSeconds: 30
-          volumeMounts:
-            - { name: data, mountPath: /var/lib/rabbitmq }
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: rabbitmq-data
 ---
 apiVersion: v1
 kind: Service

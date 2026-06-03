@@ -18,8 +18,8 @@ spec:
             - { name: PGHOST,     valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_HOST } } }
             - { name: PGPORT,     valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_PORT } } }
             - { name: PGDATABASE, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_NAME } } }
-            - { name: PGUSER,     valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: user } } }
-            - { name: PGPASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: password } } }
+            - { name: PGUSER,     valueFrom: { secretKeyRef: { name: db-pguser-bankadmin, key: user } } }
+            - { name: PGPASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bankadmin, key: password } } }
           command: ["psql", "-v", "ON_ERROR_STOP=1", "-c", "CREATE SCHEMA IF NOT EXISTS user_service;"]
       containers:
         - name: migrate
@@ -30,14 +30,14 @@ spec:
           # Replace with your migrations image (or inline via initContainer + emptyDir).
           args:
             - "-path=/migrations"
-            - "-database=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable&search_path=user_service&x-migrations-table=schema_migrations_user"
+            - "-database=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=require&search_path=user_service&x-migrations-table=schema_migrations_user"
             - "up"
           env:
             - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_HOST } } }
             - { name: DB_PORT, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_PORT } } }
             - { name: DB_NAME, valueFrom: { configMapKeyRef: { name: exbanka-config, key: DB_NAME } } }
-            - { name: DB_USER,     valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: user } } }
-            - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: password } } }
+            - { name: DB_USER,     valueFrom: { secretKeyRef: { name: db-pguser-bankadmin, key: user } } }
+            - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bankadmin, key: password } } }
           volumeMounts:
             - { name: migrations, mountPath: /migrations, readOnly: true }
       volumes:

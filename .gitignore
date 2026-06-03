@@ -1,0 +1,4 @@
+k8s/21-secrets.yaml
+
+# Claude Code lokalni fajlovi
+.claude/

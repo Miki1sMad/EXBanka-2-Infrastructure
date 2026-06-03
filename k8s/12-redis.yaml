@@ -1,3 +1,7 @@
+# Redis cache (card data, ephemeral state).
+# Stateless: persistence disabled (--save "" --appendonly no), no
+# PersistentVolume — matches docker-compose (redis runs with no volume).
+# Service DNS `redis:6379` matches REDIS_URL in exbanka-config.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,19 +23,6 @@ spec:
           args: ["redis-server", "--save", "", "--appendonly", "no"]
           ports:
             - { name: redis, containerPort: 6379 }
-          readinessProbe:
-            tcpSocket:
-              port: 6379
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            tcpSocket:
-              port: 6379
-            initialDelaySeconds: 15
-            periodSeconds: 30
-          resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits:   { cpu: 200m, memory: 256Mi }
 ---
 apiVersion: v1
 kind: Service

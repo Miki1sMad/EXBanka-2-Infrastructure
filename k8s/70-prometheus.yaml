@@ -128,17 +128,6 @@ spec:
             - { name: config, mountPath: /etc/prometheus/prometheus.yml, subPath: prometheus.yml, readOnly: true }
             - { name: config, mountPath: /etc/prometheus/rules/alerts.yml, subPath: alerts.yml, readOnly: true }
             - { name: data,   mountPath: /prometheus }
-          readinessProbe:
-            httpGet: { path: /-/ready, port: http }
-            initialDelaySeconds: 10
-            periodSeconds: 10
-          livenessProbe:
-            httpGet: { path: /-/healthy, port: http }
-            initialDelaySeconds: 30
-            periodSeconds: 30
-          resources:
-            requests: { cpu: 100m, memory: 256Mi }
-            limits:   { cpu: 500m, memory: 1Gi }
       volumes:
         - name: config
           configMap:

@@ -28,17 +28,6 @@ spec:
           envFrom:
             - configMapRef: { name: exbanka-config }
             - secretRef:    { name: exbanka-secrets }
-          readinessProbe:
-            httpGet: { path: /healthz, port: metrics }
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet: { path: /healthz, port: metrics }
-            initialDelaySeconds: 30
-            periodSeconds: 30
-          resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits:   { cpu: 500m, memory: 256Mi }
 ---
 apiVersion: v1
 kind: Service

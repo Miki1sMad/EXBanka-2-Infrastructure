@@ -26,22 +26,11 @@ spec:
             - { name: DB_SCHEMA,  value: "user_service" }
             - { name: HTTP_ADDR,  value: "0.0.0.0:8080" }
             - { name: GRPC_ADDR,  value: "0.0.0.0:50051" }
-            - { name: DB_USER,     valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: user } } }
-            - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bank_admin, key: password } } }
+            - { name: DB_USER,     valueFrom: { secretKeyRef: { name: db-pguser-bankadmin, key: user } } }
+            - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: db-pguser-bankadmin, key: password } } }
           envFrom:
             - configMapRef: { name: exbanka-config }
             - secretRef:    { name: exbanka-secrets }
-          readinessProbe:
-            httpGet: { path: /healthz, port: http }
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet: { path: /healthz, port: http }
-            initialDelaySeconds: 30
-            periodSeconds: 30
-          resources:
-            requests: { cpu: 100m, memory: 128Mi }
-            limits:   { cpu: 1000m, memory: 512Mi }
 ---
 apiVersion: v1
 kind: Service

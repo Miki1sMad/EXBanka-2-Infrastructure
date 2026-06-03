@@ -6,7 +6,9 @@ GHCR (built by the per-repo CI/CD).
 ## Prerequisites on the cluster
 
 1. **Crunchy Postgres Operator** installed (cluster-wide or in `exbanka-2`).
-2. **Nginx Ingress Controller** (or adjust `ingressClassName` in `60-ingress.yaml`).
+2. **Envoy Gateway** installed, with a `Gateway` named `banka-gw` in
+   `envoy-gateway-system` (the HTTPRoute in `60-route.yaml` attaches to it via
+   `parentRefs`). This matches the professor's reference setup.
 3. **cert-manager** (or pre-created `exbanka-tls` Secret) for HTTPS.
 4. **GHCR pull secret** in `exbanka-2`:
    ```sh
@@ -24,7 +26,7 @@ kubectl apply -f 00-namespace.yaml
 
 # 2) Postgres cluster (operator must already be installed)
 kubectl apply -f 10-postgres-cluster.yaml
-# Wait until the operator creates `db-pguser-bank_admin` Secret and a
+# Wait until the operator creates `db-pguser-bankadmin` Secret and a
 # `db-primary` Service before proceeding.
 
 # 3) Infrastructure
@@ -48,9 +50,8 @@ kubectl wait --for=condition=complete -n exbanka-2 \
 kubectl apply -f 40-user-service.yaml -f 41-bank-service.yaml \
               -f 42-notification-service.yaml -f 50-frontend.yaml
 
-# 8) Ingress
-sed -i 's/DOMEN_PLACEHOLDER/your.real.domain/g' 60-ingress.yaml 20-config.yaml
-kubectl apply -f 60-ingress.yaml
+# 8) HTTPRoute (host exbanka-2.radenkovic.rs already set in 60-route.yaml + 20-config.yaml)
+kubectl apply -f 60-route.yaml
 kubectl rollout restart deploy/frontend -n exbanka-2   # picks up new API_BASE_URL if changed
 
 # 9) Observability (MLA bonus) — Prometheus + Alertmanager + Grafana
@@ -85,8 +86,11 @@ kubectl rollout restart deploy/frontend -n exbanka-2
 `docker-entrypoint.sh` regenerates `/usr/share/nginx/html/config.js` on every
 pod start; browsers fetch the new value with the next page load.
 
-## Ingress routing modes
+## Routing (HTTPRoute)
 
-See header comment in `60-ingress.yaml`. Default is Option A (frontend nginx
-proxies). Switch to Option B if the professor requires literal
-`/user-service/...` and `/bank-service/...` in the URL.
+`60-route.yaml` is a single Gateway API `HTTPRoute` that sends all traffic for
+`exbanka-2.radenkovic.rs` to the `frontend` Service. The frontend's own nginx
+(`nginx.conf`) proxies `/api/*` to `bank-service` / `user-service`, so the
+HTTPRoute stays simple — no per-endpoint URLRewrite rules. This follows the
+professor's reference `route.yaml` format (not the rejected, complex
+`route-old.yaml`).
