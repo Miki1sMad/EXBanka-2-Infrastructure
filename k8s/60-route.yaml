@@ -2,9 +2,9 @@
 # Format po profesorovom primeru (Banka-2-Infrastructure/route.yaml), NE po
 # route-old.yaml (koji je profesor proglasio prekompleksnim).
 #
-# Sav saobracaj ide na frontend Service. Frontend-ov nginx (nginx.conf) sam
-# proxy-uje /api/* na bank-service / user-service. Zato HTTPRoute ostaje
-# jednostavan — jedno pravilo, bez per-endpoint URLRewrite-a.
+# App saobracaj ide na frontend Service (nginx interno proxy-uje /api/* na
+# bank-service / user-service). Izuzetak: bare inter-bank si-tx-proto putanje
+# (dolazni pozivi Banke 2) idu direktno na bank-service — vidi prvo pravilo.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -17,6 +17,18 @@ spec:
     hostnames:
         - exbanka-2.radenkovic.rs
     rules:
+        # Inter-bank si-tx-proto (dolazni) — bare putanje direktno na bank-service,
+        # PRE catch-all-a. Exact na /interbank i /public-stock da NE presretnu SPA
+        # rute /interbank/payments i /interbank/otc. (Gateway API: Exact > PathPrefix
+        # > kraci prefiks, pa /negotiations i /user/ pobedjuju catch-all /.)
+        - matches:
+              - path: { type: Exact, value: /interbank }
+              - path: { type: Exact, value: /public-stock }
+              - path: { type: PathPrefix, value: /negotiations }
+              - path: { type: PathPrefix, value: /user/ }
+          backendRefs:
+              - name: bank-service
+                port: 8080
         - matches:
               - path: { type: PathPrefix, value: / }
           backendRefs:
